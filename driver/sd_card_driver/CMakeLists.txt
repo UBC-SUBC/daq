@@ -1,0 +1,5 @@
+zephyr_library()
+zephyr_library_sources(disc_operations.c)
+zephyr_include_directories(${ZEPHYR_BASE}/../modules/fs/fatfs/include)
+zephyr_include_directories(${ZEPHYR_BASE}/modules/fatfs)
+zephyr_compile_definitions(ZEPHYR_CONFIG_OVERRIDE=zephyr_fatfs_config.h)
