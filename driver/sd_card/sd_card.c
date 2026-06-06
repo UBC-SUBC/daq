@@ -84,6 +84,7 @@ int sd_card_init(void)
 	}
 
 	ret = create_new_file(DEFAUTL_FILE_NAME, &file, NULL); // create a test file to check if the SD card is working properly
+	ret = add_data_to_file(file_header, strlen(file_header));
 	return ret;
 }
 
