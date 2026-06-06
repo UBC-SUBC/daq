@@ -68,7 +68,7 @@ static int create_new_file(const char *file_path, struct fs_file_t* file, struct
 	return 0; 
 }
 
-int sd_card_mount(void)
+int sd_card_init(void)
 {
 	int ret = disk_access_ioctl(DISK_DRIVE_NAME, DISK_IOCTL_CTRL_INIT, NULL);
 
@@ -83,7 +83,7 @@ int sd_card_mount(void)
 		return ret;
 	}
 
-	ret = create_new_file("test.txt", &file, NULL); // create a test file to check if the SD card is working properly
+	ret = create_new_file(DEFAUTL_FILE_NAME, &file, NULL); // create a test file to check if the SD card is working properly
 	return ret;
 }
 
@@ -107,9 +107,9 @@ int sd_card_cleanup(void)
 	return ret;
 }
 
-int add_data_to_file(struct fs_file_t* file, const char *data, size_t data_len)
+int add_data_to_file(const char *data, size_t data_len)
 {
-	if (fs_write(file, data, data_len) < 0 ) {
+	if (fs_write(&file, data, data_len) < 0 ) {
 		return 1;
 	}
 

@@ -9,6 +9,7 @@
 #include <ff.h>
 
 #include "sd_card.h"
+#include "main.h"
 
 #define SD_SPI_NODE DT_NODELABEL(spi1)
 
@@ -37,25 +38,29 @@ int main(void)
 	// static const char data[] = "SD card write test\r\n";
 	int ret;
 	int close_ret;
+	
 
 	ret = sd_card_spi_init();
 	
 	#if DEBUG
-		if (ret != 0) {
-			printk("SD: SPI1 or CS not ready: %d\n", ret);
-			return ret;
-		}
+	if (ret != 0) {
+		printk("SD: SPI1 or CS not ready: %d\n", ret);
+		return ret;
+	}
 	#else
-		if (ret != 0) {
-			return ret;
-		}
-	#endif
-
-	ret = sd_card_mount();
 	if (ret != 0) {
 		return ret;
 	}
+	#endif //DEBUG
+
+	ret = sd_card_init();
+	if (ret != 0) {
+		printk("gg\n");
+		return ret;
+	}
+	#if DEBUG
 	printk("SD: mounted at %s\n", DISK_MOUNT_PT);
+	#endif //DEBUG
 
 	// ret = create_new_file("daq.txt", &file, NULL);
 	// if (ret != 0) {
@@ -65,12 +70,12 @@ int main(void)
 	// }
 	// printk("SD: created daq.txt\n");
 
-	// ret = add_data_to_file(&file, data, strlen(data));
-	// if (ret != 0) {
-	// 	printk("SD: write failed: %d\n", ret);
-	// } else {
-	// 	printk("SD: wrote %u bytes\n", (unsigned int)strlen(data));
-	// }
+	ret = add_data_to_file(header, strlen(header));
+	if (ret != 0) {
+		printk("SD: write failed: %d\n", ret);
+	} else {
+		printk("SD: wrote %u bytes\n", (unsigned int)strlen(header));
+	}
 
 	// close_ret = close_file(&file);
 	// if (close_ret != 0) {
@@ -82,8 +87,6 @@ int main(void)
 	if (close_ret != 0) {
 		ret = close_ret;
 	}
-
-	printk("SD: test %s\n", ret == 0 ? "passed" : "failed");
 
 	return ret;
 }
