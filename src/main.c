@@ -14,12 +14,82 @@
 #define SD_SPI_NODE DT_NODELABEL(spi1)
 
 // ========== Configuration ==========
-#define DEBUG 1
+#define DEBUG 0
 //====================================
 
 static const struct device *const sd_spi = DEVICE_DT_GET(SD_SPI_NODE);
 static const struct gpio_dt_spec sd_cs = GPIO_DT_SPEC_GET_BY_IDX(SD_SPI_NODE, cs_gpios, 0);
 
+dev_status all_dev_status = 
+{
+	.BME280 = pending,
+	.xxx_sensor = pending,
+	.six_seven_sensor = pending,
+	.hall_effect_sensor = pending,
+	.SD_card = pending
+};
+
+/*
+* static functions declarations
+*/
+static int onboard_peripherals_init(void);
+static int external_peripherals_init(void);
+
+int main(void)
+{
+	// static const char data[] = "SD card write test\r\n";
+	int ret;
+	int close_ret;
+	
+	//init the data stuct and status struct:
+	sd_data_struct data = {0};
+
+	ret = onboard_peripherals_init();
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = external_peripherals_init();
+	if (ret != 0) {
+		return ret;
+	}
+
+	//sensor reading gose here???
+	data.temp = 1;
+	data.pressure = 2;
+	data.rpm = 3;
+	data.xxx = 4;
+	data.yyy = 5;
+	data.ccc = 6;
+
+	// check for status of each device
+	char data_row[32];
+	int data_row_len = snprintk(data_row, sizeof(data_row), "\n%u,%u,%u,%u,%u,%u",
+				    data.temp, data.pressure, data.rpm,
+				    data.xxx, data.yyy, data.ccc);
+
+	ret = add_data_to_file(data_row, data_row_len);
+	if (ret != 0) {
+		printk("SD: write failed: %d\n", ret);
+	}
+
+	/*
+	*close the SD card at very end of the firmware
+	*/
+	close_ret = sd_card_cleanup();
+	if (close_ret != 0) {
+		ret = close_ret;
+	}
+
+	return ret;
+}
+
+
+/*
+* static functions definitions
+*/
+
+//onboard peripherals initialization gose here, for example the SD card SPI interface
 static int sd_card_spi_init(void)
 {
 	if (!device_is_ready(sd_spi)) {
@@ -33,59 +103,24 @@ static int sd_card_spi_init(void)
 	return 0;
 }
 
-int main(void)
-{
-	// static const char data[] = "SD card write test\r\n";
-	int ret;
-	int close_ret;
-	
-
+static int onboard_peripherals_init(void){
+	int ret = 0;
+	//SPI1 for sd card, cs is P1.12
 	ret = sd_card_spi_init();
-	
-	#if DEBUG
-	if (ret != 0) {
-		printk("SD: SPI1 or CS not ready: %d\n", ret);
-		return ret;
-	}
-	#else
 	if (ret != 0) {
 		return ret;
 	}
-	#endif //DEBUG
+
+	return ret;
+}
+//external devices/sensors initialization gose here, for example the BME280 sensor and SD card
+static int external_peripherals_init(void)
+{
+	int ret = 0;
 
 	ret = sd_card_init();
 	if (ret != 0) {
-		printk("gg\n");
 		return ret;
-	}
-	#if DEBUG
-	printk("SD: mounted at %s\n", DISK_MOUNT_PT);
-	#endif //DEBUG
-
-	// ret = create_new_file("daq.txt", &file, NULL);
-	// if (ret != 0) {
-	// 	printk("SD: create file failed: %d\n", ret);
-	// 	fs_unmount(&sd_mount);
-	// 	return ret;
-	// }
-	// printk("SD: created daq.txt\n");
-
-	ret = add_data_to_file(header, strlen(header));
-	if (ret != 0) {
-		printk("SD: write failed: %d\n", ret);
-	} else {
-		printk("SD: wrote %u bytes\n", (unsigned int)strlen(header));
-	}
-
-	// close_ret = close_file(&file);
-	// if (close_ret != 0) {
-	// 	printk("SD: close failed: %d\n", close_ret);
-	// 	ret = close_ret;
-	// }
-
-	close_ret = sd_card_cleanup();
-	if (close_ret != 0) {
-		ret = close_ret;
 	}
 
 	return ret;
