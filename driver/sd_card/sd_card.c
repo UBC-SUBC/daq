@@ -18,6 +18,14 @@ static struct fs_mount_t sd_mount = {
 	.mnt_point = DISK_MOUNT_PT,
 };
 
+static int _add_data_to_file(const char *data, size_t data_len)
+{
+	if (fs_write(&file, data, data_len) < 0 ) {
+		return 1;
+	}
+
+	return 0;
+}
 
 static int create_new_file(const char *file_path, struct fs_file_t* file, struct tm* t)
 {
@@ -84,7 +92,7 @@ int sd_card_init(void)
 	}
 
 	ret = create_new_file(DEFAUTL_FILE_NAME, &file, NULL); // create a test file to check if the SD card is working properly
-	ret = add_data_to_file(file_header, strlen(file_header));
+	ret = _add_data_to_file(file_header, strlen(file_header));
 	return ret;
 }
 
@@ -108,25 +116,21 @@ int sd_card_cleanup(void)
 	return ret;
 }
 
-int add_data_to_file(const char *data, size_t data_len)
-{
-	if (fs_write(&file, data, data_len) < 0 ) {
-		return 1;
-	}
-
-	return 0;
-
-}
 
 int add_sensor_data_to_file(sd_data_struct* data)
 {
 	int ret;
 	char data_row[32];
 	int data_row_len = snprintk(data_row, sizeof(data_row), "\n%u,%u,%u,%u,%u,%u",
-				    data.temp, data.pressure, data.rpm,
-				    data.xxx, data.yyy, data.ccc);
+			    data->temp, data->pressure, data->rpm,
+			    data->xxx, data->yyy, data->ccc);
 
-	ret = add_data_to_file(data_row, data_row_len);
+	ret = _add_data_to_file(data_row, data_row_len);
+	
+	if (ret != 0)
+	{
+		printk("SD: write failed: %d\n", ret);
+	}
 	
 	return ret;
 }

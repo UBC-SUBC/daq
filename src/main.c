@@ -62,16 +62,11 @@ int main(void)
 	data.yyy = 5;
 	data.ccc = 6;
 
-	// check for status of each device
-	// TODO: write a wrapper function for dumping the stuff in the struct to sd card
-	char data_row[32];
-	int data_row_len = snprintk(data_row, sizeof(data_row), "\n%u,%u,%u,%u,%u,%u",
-				    data.temp, data.pressure, data.rpm,
-				    data.xxx, data.yyy, data.ccc);
-
-	ret = add_data_to_file(data_row, data_row_len);
+	ret = add_sensor_data_to_file(&data);
 	if (ret != 0) {
-		printk("SD: write failed: %d\n", ret);
+		all_dev_status.SD_card = pending;
+	} else {
+		all_dev_status.SD_card = complete;
 	}
 
 	/*
