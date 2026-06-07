@@ -1,0 +1,24 @@
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+&qspi {
+	status = "disabled";
+};
+
+&spi1 {
+	status = "okay";
+	cs-gpios = <&gpio1 12 GPIO_ACTIVE_LOW>;
+
+	sdhc0: sdhc@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0>;
+		status = "okay";
+		power-delay-ms = <10>;
+		spi-max-frequency = <4000000>;
+
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+	};
+};
