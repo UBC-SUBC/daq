@@ -5,5 +5,6 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(daq)
 
 add_subdirectory(driver/sd_card)
+add_subdirectory(driver/BME280/Bosch_driver)
 
 target_sources(app PRIVATE src/main.c)
