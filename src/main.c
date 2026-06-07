@@ -63,6 +63,7 @@ int main(void)
 	data.ccc = 6;
 
 	// check for status of each device
+	// TODO: write a wrapper function for dumping the stuff in the struct to sd card
 	char data_row[32];
 	int data_row_len = snprintk(data_row, sizeof(data_row), "\n%u,%u,%u,%u,%u,%u",
 				    data.temp, data.pressure, data.rpm,

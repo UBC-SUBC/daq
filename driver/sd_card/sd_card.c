@@ -118,6 +118,19 @@ int add_data_to_file(const char *data, size_t data_len)
 
 }
 
+int add_sensor_data_to_file(sd_data_struct* data)
+{
+	int ret;
+	char data_row[32];
+	int data_row_len = snprintk(data_row, sizeof(data_row), "\n%u,%u,%u,%u,%u,%u",
+				    data.temp, data.pressure, data.rpm,
+				    data.xxx, data.yyy, data.ccc);
+
+	ret = add_data_to_file(data_row, data_row_len);
+	
+	return ret;
+}
+
 int close_file(struct fs_file_t* file)
 {
 	if (fs_close(file) != 0) {
