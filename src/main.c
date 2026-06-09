@@ -9,9 +9,11 @@
 #include <ff.h>
 
 #include "sd_card.h"
+#include "custom_bme280_driver.h"
 #include "main.h"
 
 #define SD_SPI_NODE DT_NODELABEL(spi1)
+#define BME280_SPI_NODE DT_NODELABEL(bme280)
 
 // ========== Configuration ==========
 #define DEBUG 0
@@ -19,6 +21,11 @@
 
 static const struct device *const sd_spi = DEVICE_DT_GET(SD_SPI_NODE);
 static const struct gpio_dt_spec sd_cs = GPIO_DT_SPEC_GET_BY_IDX(SD_SPI_NODE, cs_gpios, 0);
+static struct bme280_dev bme280;
+
+#if DT_NODE_EXISTS(BME280_SPI_NODE)
+static const struct spi_dt_spec bme280_spi = SPI_DT_SPEC_GET(BME280_SPI_NODE, SPI_WORD_SET(8));
+#endif
 
 dev_status all_dev_status = 
 {
@@ -34,6 +41,7 @@ dev_status all_dev_status =
 */
 static int onboard_peripherals_init(void);
 static int external_peripherals_init(void);
+static int bme280_sensor_init(void);
 
 int main(void)
 {
@@ -43,20 +51,30 @@ int main(void)
 	
 	//init the data stuct and status struct:
 	sd_data_struct data = {0};
+	struct bme280_data bme280_data = {0};
 
+	printk("g");
 	ret = onboard_peripherals_init();
 	if (ret != 0) {
 		return ret;
 	}
 
+	printk("ggg");
 	ret = external_peripherals_init();
 	if (ret != 0) {
 		return ret;
 	}
 
-	//sensor reading gose here???
-	data.temp = 1;
-	data.pressure = 2;
+	printk("gggg");
+	ret = custom_bme280_read_sensor_data(&bme280, &bme280_data);
+	if (ret != BME280_OK) {
+		all_dev_status.BME280 = pending;
+		// printk("Failed to read BME280 sensor data: %d\n", ret);
+		return ret;
+	}
+
+	data.temp = (uint8_t)bme280_data.temperature;
+	data.pressure = (uint8_t)bme280_data.pressure;
 	data.rpm = 3;
 	data.xxx = 4;
 	data.yyy = 5;
@@ -114,10 +132,34 @@ static int external_peripherals_init(void)
 {
 	int ret = 0;
 
+	ret = bme280_sensor_init();
+	if (ret != 0) {
+		return ret;
+	}
+
 	ret = sd_card_init();
 	if (ret != 0) {
 		return ret;
 	}
 
 	return ret;
+}
+
+static int bme280_sensor_init(void)
+{
+#if DT_NODE_EXISTS(BME280_SPI_NODE)
+	int ret = custom_bme280_init(&bme280, &bme280_spi);
+
+	printk("stuck here?");
+	if (ret != BME280_OK) {
+		all_dev_status.BME280 = pending;
+		printk("Failed to initialize BME280 sensor: %d\n", ret);
+		return ret;
+	}
+
+	all_dev_status.BME280 = complete;
+	return 0;
+#else
+	return -ENODEV;
+#endif
 }
