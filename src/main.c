@@ -13,27 +13,22 @@
 #include "main.h"
 
 #define SD_SPI_NODE DT_NODELABEL(spi1)
-#define BME280_SPI_NODE DT_NODELABEL(bme280)
 
 // ========== Configuration ==========
-#define DEBUG 0
+#define DEBUG 1
 //====================================
 
 static const struct device *const sd_spi = DEVICE_DT_GET(SD_SPI_NODE);
 static const struct gpio_dt_spec sd_cs = GPIO_DT_SPEC_GET_BY_IDX(SD_SPI_NODE, cs_gpios, 0);
 static struct bme280_dev bme280;
 
-#if DT_NODE_EXISTS(BME280_SPI_NODE)
-static const struct spi_dt_spec bme280_spi = SPI_DT_SPEC_GET(BME280_SPI_NODE, SPI_WORD_SET(8));
-#endif
-
 dev_status all_dev_status = 
 {
-	.BME280 = pending,
-	.xxx_sensor = pending,
-	.six_seven_sensor = pending,
-	.hall_effect_sensor = pending,
-	.SD_card = pending
+	.BME280 = un_init,
+	.Barometer = un_init,
+	.IMU = un_init,
+	.hall_effect_sensor = un_init,
+	.SD_card = un_init
 };
 
 /*
@@ -41,7 +36,6 @@ dev_status all_dev_status =
 */
 static int onboard_peripherals_init(void);
 static int external_peripherals_init(void);
-static int bme280_sensor_init(void);
 
 int main(void)
 {
@@ -53,38 +47,95 @@ int main(void)
 	sd_data_struct data = {0};
 	struct bme280_data bme280_data = {0};
 
-	printk("g");
 	ret = onboard_peripherals_init();
 	if (ret != 0) {
+		#if DEBUG
+		printk("onboard peripheral init failed");
+		#endif
 		return ret;
 	}
 
-	printk("ggg");
 	ret = external_peripherals_init();
 	if (ret != 0) {
+		#if DEBUG
+		printk("external peripheral init failed");
+		#endif
 		return ret;
 	}
 
-	printk("gggg");
-	ret = custom_bme280_read_sensor_data(&bme280, &bme280_data);
-	if (ret != BME280_OK) {
-		all_dev_status.BME280 = pending;
-		// printk("Failed to read BME280 sensor data: %d\n", ret);
-		return ret;
-	}
+	/*
+	if code got here all peripheral should be initialized
+	*/
+	all_dev_status.BME280 = pending;
+	all_dev_status.Barometer = pending;
+	all_dev_status.IMU = pending;
+	all_dev_status.hall_effect_sensor = pending;
+	all_dev_status.SD_card = pending;
 
-	data.temp = (uint8_t)bme280_data.temperature;
-	data.pressure = (uint8_t)bme280_data.pressure;
-	data.rpm = 3;
-	data.xxx = 4;
-	data.yyy = 5;
-	data.ccc = 6;
+	// geting sd card read ready
+	int last_sd_write = k_uptime_get();
+	int test_counter = 15;
+	/*
+	measure loop begin
+	*/
+// return 0;
+// sd_card_cleanup();
+	while (test_counter){
+		/*
+		read data and update status for bme280
+		*/
+		
+		if (all_dev_status.BME280 == pending) {
+			all_dev_status.BME280 = pending_calculation;
+			ret = custom_bme280_read_sensor_data(&bme280, &bme280_data);
+			if (ret != BME280_OK) {
+				#if DEBUG
+				printk("BME280 read failed: %d\n", ret);
+				#endif
+				return ret;
+			}
+			else
+			{
+				#if DEBUG
+				printk("BME280 read success!\n");
+				printk("Temperature: %.d C\n", (int)bme280_data.temperature);
+				printk("Humidity: %.d %%\n", (int)bme280_data.humidity);
+				#endif
+				all_dev_status.BME280 = complete;
+			}
+		}
 
-	ret = add_sensor_data_to_file(&data);
-	if (ret != 0) {
-		all_dev_status.SD_card = pending;
-	} else {
-		all_dev_status.SD_card = complete;
+
+		if (k_uptime_get() - last_sd_write >= 1000) {
+			test_counter --;
+			last_sd_write = k_uptime_get();
+			
+			//TODO add status check
+
+			data.temp = (uint8_t) bme280_data.temperature;
+			data.humidity = (uint16_t) bme280_data.humidity;
+			data.pressure = 0xff;
+			data.rpm = 0xff;
+			data.x = 0xff;
+			data.y = 0xff;
+			data.z = 0xff;
+
+			ret = add_sensor_data_to_file(&data);
+			if (ret != 0) {
+				all_dev_status.SD_card = failed;
+				#if DEBUG
+					printk("sd card write failed");
+				#endif
+			} else {
+				all_dev_status.SD_card = complete;
+
+				//reset all other sensor status
+				all_dev_status.BME280 = pending;
+				#if DEBUG
+					printk("sd card write success");
+				#endif
+			}
+		}
 	}
 
 	/*
@@ -94,6 +145,10 @@ int main(void)
 	if (close_ret != 0) {
 		ret = close_ret;
 	}
+
+	#if DEBUG
+	printk("program ended");
+	#endif
 
 	return ret;
 }
@@ -125,6 +180,8 @@ static int onboard_peripherals_init(void){
 		return ret;
 	}
 
+	//SPI3 init for bme280 is within custom_bme280_init()
+
 	return ret;
 }
 //external devices/sensors initialization gose here, for example the BME280 sensor and SD card
@@ -132,34 +189,44 @@ static int external_peripherals_init(void)
 {
 	int ret = 0;
 
-	ret = bme280_sensor_init();
-	if (ret != 0) {
-		return ret;
-	}
-
+	/*
+	SD Card Init
+	*/
 	ret = sd_card_init();
 	if (ret != 0) {
+		#if DEBUG
+		printk("SD card init failed: %d\n", ret);
+		#endif
 		return ret;
 	}
+	else{
+		#if DEBUG
+		printk("SD card init! \n");
+		#endif
+		all_dev_status.SD_card = init;
+	}
+
+	/*
+	* BME280 init
+	*/
+	ret = custom_bme280_init(&bme280);
+	if (ret != BME280_OK) {
+		#if DEBUG
+		printk("BME280 init failed: %d\n", ret);
+		#endif
+		return ret;
+	}
+	else
+	{
+		#if DEBUG
+		printk("BME280 init!\n");
+		#endif
+		all_dev_status.BME280 = init;
+	}
+
+	#if DEBUG
+	printk("External peripherals initialized successfully\n");
+	#endif
 
 	return ret;
-}
-
-static int bme280_sensor_init(void)
-{
-#if DT_NODE_EXISTS(BME280_SPI_NODE)
-	int ret = custom_bme280_init(&bme280, &bme280_spi);
-
-	printk("stuck here?");
-	if (ret != BME280_OK) {
-		all_dev_status.BME280 = pending;
-		printk("Failed to initialize BME280 sensor: %d\n", ret);
-		return ret;
-	}
-
-	all_dev_status.BME280 = complete;
-	return 0;
-#else
-	return -ENODEV;
-#endif
 }

@@ -26,11 +26,9 @@
 &spi2 {
 	status = "okay";
 	cs-gpios = <&gpio0 0 GPIO_ACTIVE_LOW>;
+};
 
-	bme280: bme280@0 {
-		compatible = "bosch,bme280";
-		reg = <0>;
-		status = "okay";
-		spi-max-frequency = <1000000>;
-	};
+&spi3 {
+	status = "okay";
+	cs-gpios = <&gpio1 11 GPIO_ACTIVE_LOW>;
 };

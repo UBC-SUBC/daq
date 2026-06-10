@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-int8_t custom_bme280_init(struct bme280_dev *dev, const struct spi_dt_spec *spi);
+int8_t custom_bme280_init(struct bme280_dev *dev);
 int8_t custom_bme280_read_sensor_data(struct bme280_dev *dev, struct bme280_data *data);
 
 #ifdef __cplusplus
