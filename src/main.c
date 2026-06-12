@@ -15,7 +15,7 @@
 #define SD_SPI_NODE DT_NODELABEL(spi1)
 
 // ========== Configuration ==========
-#define DEBUG 1
+#define DEBUG 0
 //====================================
 
 static const struct device *const sd_spi = DEVICE_DT_GET(SD_SPI_NODE);
@@ -124,7 +124,7 @@ int main(void)
 			if (ret != 0) {
 				all_dev_status.SD_card = failed;
 				#if DEBUG
-					printk("sd card write failed");
+					printk("sd card write failed\n");
 				#endif
 			} else {
 				all_dev_status.SD_card = complete;
@@ -132,7 +132,7 @@ int main(void)
 				//reset all other sensor status
 				all_dev_status.BME280 = pending;
 				#if DEBUG
-					printk("sd card write success");
+					printk("sd card write success\n");
 				#endif
 			}
 		}
@@ -147,7 +147,7 @@ int main(void)
 	}
 
 	#if DEBUG
-	printk("program ended");
+	printk("program ended\n");
 	#endif
 
 	return ret;

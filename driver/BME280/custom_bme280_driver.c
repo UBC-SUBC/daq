@@ -6,6 +6,11 @@
 #include <zephyr/sys/util.h>
 
 #define BME280_SPI_NODE DT_NODELABEL(spi3)
+#define CUSTOM_BME280_FILTER BME280_FILTER_COEFF_2
+#define CUSTOM_BME280_OVERSAMPLING BME280_OVERSAMPLING_1X
+#define CUSTOM_BME280_STANDBY_TIME BME280_STANDBY_TIME_0_5_MS
+
+static uint32_t bme280_measurement_delay_us;
 
 static const struct spi_dt_spec bme280_spi = {
 	.bus = DEVICE_DT_GET(BME280_SPI_NODE),
@@ -114,6 +119,9 @@ static void custom_bme280_delay_us(uint32_t period, void *intf_ptr)
 
 int8_t custom_bme280_init(struct bme280_dev *dev)
 {
+	struct bme280_settings settings;
+	int8_t rslt;
+
 	if (dev == NULL) {
 		return BME280_E_NULL_PTR;
 	}
@@ -134,10 +142,50 @@ int8_t custom_bme280_init(struct bme280_dev *dev)
 	dev->write = custom_bme280_spi_write;
 	dev->delay_us = custom_bme280_delay_us;
 
-	return bme280_init(dev);
+	rslt = bme280_init(dev);
+	if (rslt != BME280_OK) {
+		return rslt;
+	}
+
+	rslt = bme280_get_sensor_settings(&settings, dev);
+	if (rslt != BME280_OK) {
+		return rslt;
+	}
+
+	settings.filter = CUSTOM_BME280_FILTER;
+	settings.osr_h = CUSTOM_BME280_OVERSAMPLING;
+	settings.osr_p = CUSTOM_BME280_OVERSAMPLING;
+	settings.osr_t = CUSTOM_BME280_OVERSAMPLING;
+	settings.standby_time = CUSTOM_BME280_STANDBY_TIME;
+
+	rslt = bme280_set_sensor_settings(BME280_SEL_ALL_SETTINGS, &settings, dev);
+	if (rslt != BME280_OK) {
+		return rslt;
+	}
+
+	rslt = bme280_cal_meas_delay(&bme280_measurement_delay_us, &settings);
+	if (rslt != BME280_OK) {
+		return rslt;
+	}
+
+	return bme280_set_sensor_mode(BME280_POWERMODE_SLEEP, dev);
 }
 
 int8_t custom_bme280_read_sensor_data(struct bme280_dev *dev, struct bme280_data *data)
 {
+	int8_t rslt;
+
+	if ((dev == NULL) || (data == NULL)) {
+		return BME280_E_NULL_PTR;
+	}
+
+	rslt = bme280_set_sensor_mode(BME280_POWERMODE_FORCED, dev);
+	if (rslt != BME280_OK) {
+		return rslt;
+	}
+
+	dev->delay_us(bme280_measurement_delay_us, dev->intf_ptr);
+
+	/* Bosch API reads raw registers and returns compensated temperature, pressure, and humidity. */
 	return bme280_get_sensor_data(BME280_ALL, data, dev);
 }

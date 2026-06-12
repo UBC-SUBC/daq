@@ -29,6 +29,6 @@ typedef struct {
 
 int add_sensor_data_to_file(sd_data_struct* data);
 
-static const char file_header[] = "time,temp,hum,pres,rpm,x,y,z";
+static const char file_header[] = "time(ms),temp(C),hum(%%),pres,rpm,x,y,z";
 
 #endif /* SD_CARD_H */
