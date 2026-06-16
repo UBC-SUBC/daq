@@ -1,6 +1,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/i2c.h>
 #include <zephyr/drivers/spi.h>
 #include <zephyr/fs/fs.h>
 #include <zephyr/storage/disk_access.h>
@@ -10,9 +11,11 @@
 
 #include "sd_card.h"
 #include "custom_bme280_driver.h"
+#include "bar30.h"
 #include "main.h"
 
 #define SD_SPI_NODE DT_NODELABEL(spi1)
+#define BAROMETER_I2C_NODE DT_NODELABEL(i2c0)
 
 // ========== Configuration ==========
 #define DEBUG 0
@@ -20,6 +23,7 @@
 
 static const struct device *const sd_spi = DEVICE_DT_GET(SD_SPI_NODE);
 static const struct gpio_dt_spec sd_cs = GPIO_DT_SPEC_GET_BY_IDX(SD_SPI_NODE, cs_gpios, 0);
+static const struct device *const barometer_i2c = DEVICE_DT_GET(BAROMETER_I2C_NODE);
 static struct bme280_dev bme280;
 
 dev_status all_dev_status = 
@@ -46,6 +50,7 @@ int main(void)
 	//init the data stuct and status struct:
 	sd_data_struct data = {0};
 	struct bme280_data bme280_data = {0};
+	int32_t bar30_pressure_mbar = 0;
 
 	ret = onboard_peripherals_init();
 	if (ret != 0) {
@@ -74,24 +79,24 @@ int main(void)
 
 	// geting sd card read ready
 	int last_sd_write = k_uptime_get();
-	int test_counter = 15;
+	int64_t test_counter = k_uptime_get();
 	/*
 	measure loop begin
 	*/
 // return 0;
 // sd_card_cleanup();
-	while (test_counter){
+	while (k_uptime_get() - test_counter < 10000){
 		/*
 		read data and update status for bme280
 		*/
 		
 		if (all_dev_status.BME280 == pending) {
-			all_dev_status.BME280 = pending_calculation;
 			ret = custom_bme280_read_sensor_data(&bme280, &bme280_data);
 			if (ret != BME280_OK) {
 				#if DEBUG
 				printk("BME280 read failed: %d\n", ret);
 				#endif
+				all_dev_status.BME280 = failed;
 				return ret;
 			}
 			else
@@ -105,16 +110,32 @@ int main(void)
 			}
 		}
 
+		if (all_dev_status.Barometer == pending) {
+			ret = bar30_read_pressure_mbar(&bar30_pressure_mbar);
+			if (ret != 0) {
+				#if DEBUG
+				printk("Bar30 read failed: %d\n", ret);
+				#endif
+				all_dev_status.Barometer = failed;
+				return ret;
+			}
+			else
+			{
+				#if DEBUG
+				printk("Bar30 read success!\n");
+				printk("Pressure: %d mbar\n", bar30_pressure_mbar);
+				#endif
+				all_dev_status.Barometer = complete;
+			}
+		}
+
 
 		if (k_uptime_get() - last_sd_write >= 1000) {
-			test_counter --;
 			last_sd_write = k_uptime_get();
-			
-			//TODO add status check
 
-			data.temp = (uint8_t) bme280_data.temperature;
-			data.humidity = (uint16_t) bme280_data.humidity;
-			data.pressure = 0xff;
+			data.temp = (all_dev_status.BME280 == complete) ? (uint8_t)bme280_data.temperature : (uint8_t)-1;
+			data.humidity = (all_dev_status.BME280 == complete) ? (uint16_t)bme280_data.humidity : (uint16_t)-1;
+			data.pressure = (all_dev_status.Barometer == complete) ? (int32_t)bar30_pressure_mbar : (int32_t)-1;
 			data.rpm = 0xff;
 			data.x = 0xff;
 			data.y = 0xff;
@@ -131,6 +152,7 @@ int main(void)
 
 				//reset all other sensor status
 				all_dev_status.BME280 = pending;
+				all_dev_status.Barometer = pending;
 				#if DEBUG
 					printk("sd card write success\n");
 				#endif
@@ -150,6 +172,7 @@ int main(void)
 	printk("program ended\n");
 	#endif
 
+	printk("program ended\n");
 	return ret;
 }
 
@@ -172,15 +195,36 @@ static int sd_card_spi_init(void)
 	return 0;
 }
 
+static int barometer_i2c_init(void)
+{
+	if (!device_is_ready(barometer_i2c)) {
+		return -ENODEV;
+	}
+
+	return 0;
+}
+
 static int onboard_peripherals_init(void){
 	int ret = 0;
 	//SPI1 for sd card, cs is P1.12
 	ret = sd_card_spi_init();
 	if (ret != 0) {
+		#if DEBUG
+		printk("sd card spi failed! \n");
+		#endif
 		return ret;
 	}
 
 	//SPI3 init for bme280 is within custom_bme280_init()
+
+	//I2C0 for Barometer
+	ret = barometer_i2c_init();
+	if (ret != 0) {
+		#if DEBUG
+		printk("barometer i2c failed! \n");
+		#endif
+		return ret;
+	}
 
 	return ret;
 }
@@ -222,6 +266,26 @@ static int external_peripherals_init(void)
 		printk("BME280 init!\n");
 		#endif
 		all_dev_status.BME280 = init;
+	}
+
+	/*
+	* Bar30 init
+	*/
+	(void)bar30_i2c_scan();
+
+	ret = bar30_init();
+	if (ret != 0) {
+		#if DEBUG
+		printk("Bar30 init failed: %d\n", ret);
+		#endif
+		return ret;
+	}
+	else
+	{
+		#if DEBUG
+		printk("Bar30 init!\n");
+		#endif
+		all_dev_status.Barometer = init;
 	}
 
 	#if DEBUG

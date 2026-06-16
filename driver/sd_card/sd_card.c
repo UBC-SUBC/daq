@@ -121,7 +121,7 @@ int add_sensor_data_to_file(sd_data_struct* data)
 {
 	int ret;
 	char data_row[48];
-	int data_row_len = snprintk(data_row, sizeof(data_row), "\n%lld,%u,%u,%u,%u,%u,%u,%u",
+	int data_row_len = snprintk(data_row, sizeof(data_row), "%lld,%u,%u,%d,%u,%u,%u,%u\n",
 			    k_uptime_get(), data->temp, data->humidity, data->pressure,
 			    data->rpm, data->x, data->y, data->z);
 
