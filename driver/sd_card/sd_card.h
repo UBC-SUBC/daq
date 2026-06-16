@@ -19,15 +19,16 @@ int close_file(struct fs_file_t* file);
 
 typedef struct {
     uint8_t temp;
+    uint16_t humidity;
     uint8_t pressure;
     uint8_t rpm;
-    uint8_t xxx;
-    uint8_t yyy;
-    uint8_t ccc;
+    uint8_t x;
+    uint8_t y;
+    uint8_t z;
 }sd_data_struct;
 
 int add_sensor_data_to_file(sd_data_struct* data);
 
-static const char file_header[] = "temp,pressure,rmp,xxx,yyy,zzz";
+static const char file_header[] = "time(ms),temp(C),hum(%%),pres,rpm,x,y,z";
 
 #endif /* SD_CARD_H */
